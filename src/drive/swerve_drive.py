@@ -15,30 +15,31 @@ class SwerveDrive:
         of the robot. The y-axis points 90 degress counter-clockwise. The following diagram shows the
         coordinate system and some related dimensions:
 
-         _________________________________________                    \ 
-        /                                         \                   |
-        |   00                              00    |                   |
-        |   00  rear_left        front_left  00   |   \               |
-        |   00               y                00  |   |               |
-        |                    ^                    |   | wheelbase_y   |
-        |                    |                    |   |               |
-        |                    +----> x             |   /               | width
-        |                                         |                   |
-        |                                         |                   |
-        |  00                                00   |                   |
-        |   00  rear_right      front_right  00   |                   |
-        |    00                              00   |                   |
-        |                                         |                   |
-        \_________________________________________/                   /
-                             <- wheelbase_x ->
-        <----------------- length ---------------->
+        ╭─────────────────────────────────────────╮                   ↑ 
+        │                                         │                   │
+        │   ╭╮                             ╭╮     │                   │
+        │   ││  rear_left       front_left ││     │   ↑               │
+        │   ╰╯              y              ╰╯     │   │               │
+        │                   ↑                     │   │               │
+        │                   │                     │   │               │
+        │                   └────→ x              │   │ track_width   │ bumpers_width
+        │                                         │   │               │
+        │                                         │   │               │
+        │   ╭╮                             ╭╮     │   │               │
+        │   ││   rear_right    front_right ││     │   ↓               │
+        │   ╰╯                             ╰╯     │                   │
+        │                                         │                   │
+        ╰─────────────────────────────────────────╯                   ↓
+             ←───────── wheelbase ─────────→
+        ←─────────── bumpers_length ──────────────→
+
         The nonrotating robot coordinate system is defined with the same center as the robot coordinate
         system, but it does not rotate and its axes always point in the same directions as the field
         coordinate system.
     """
     def __init__(self,
-            wheelbase_x: float,
-            wheelbase_y: float,
+            wheelbase: float,
+            trackwidth: float,
             length: float,
             width: float,
             mass: float,

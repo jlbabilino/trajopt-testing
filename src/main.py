@@ -7,22 +7,19 @@ import matplotlib.pyplot as plt
 def main():
     drive = SwerveDrive(
         # Wheelbase x/y
-        0.622,0.572,
-        # Bumper length/width
-        0.954,0.903,
+        0.622 * 2,  0.572 * 2,
         # Mass/moi
-        46.7,5.6,
+        46.7, 5.6,
         # Max velocity/force
-        70, 1.9,
-        # 73, 1,
-        # 50, 1,
-        # Wheel radius
-        0.051)
+        3.0, 1.2,
+        # 20.0, 1.2,
+        # static friction
+        1.1)
     
     waypoints = [
-        Waypoint(0.0, 0.0, 0.0, True),
-        Waypoint(5.0, 3.0, 2.0, False),
-        Waypoint(3.0, 1.0, -1.0)]
+        Waypoint(0.0, 0.0, 0.0),
+        # Waypoint(5.0, 3.0, 2.0, False),
+        Waypoint(3.0, 3.0, 0.0)]
 
     generator = TrajectoryGenerator(drive, waypoints)
 

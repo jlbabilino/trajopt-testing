@@ -60,7 +60,7 @@ def animate_trajectory(
 
     myrect = patches.Rectangle(
         (0, 0),
-        drive.length, drive.width,
+        drive.wheelbase, drive.track_width,
         fc="y",
         rotation_point="center")
     
@@ -75,7 +75,7 @@ def animate_trajectory(
         # myrect.set_width(drive.length)
         # myrect.set_height(drive.width)
 
-        robot_transform = transforms.Affine2D().translate(-drive.length / 2, -drive.width / 2).rotate(angular_coords[i]).translate(x_coords[i], y_coords[i]) + ax.transData 
+        robot_transform = transforms.Affine2D().translate(-drive.wheelbase / 2, -drive.track_width / 2).rotate(angular_coords[i]).translate(x_coords[i], y_coords[i]) + ax.transData 
         # robot_transform.clear()
 
 
@@ -86,7 +86,7 @@ def animate_trajectory(
         return myrect,
 
     anim = animation.FuncAnimation(
-        fig, animate, init_func=init, frames=num_states, interval=10, blit=True, repeat=True
+        fig, animate, init_func=init, frames=num_states, interval=40, blit=True, repeat=True
     )
 
     plt.show()

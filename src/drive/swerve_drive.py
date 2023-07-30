@@ -39,14 +39,12 @@ class SwerveDrive:
     """
     def __init__(self,
             wheelbase: float,
-            trackwidth: float,
-            length: float,
-            width: float,
+            track_width: float,
             mass: float,
             moi: float,
-            omega_max: float,
-            tau_max: float,
-            wheel_radius: float):
+            kV: float,
+            kF: float,
+            mu_s: float):
         """
             Initializes a swerve drive model with given characteristics.
 
@@ -63,18 +61,15 @@ class SwerveDrive:
                 tau_max      -- maximum torque of wheels (similar to omega_max)
                 wheel_radius -- radius of wheels
         """
-        self.wheelbase_x = wheelbase_x
-        self.wheelbase_y = wheelbase_y
-        self.length = length
-        self.width = width
+        self.wheelbase = wheelbase
+        self.track_width = track_width
         self.mass = mass
         self.moi = moi
-        self.omega_max = omega_max
-        self.tau_max = tau_max
-        self.wheel_radius = wheel_radius
-        self.force_max = tau_max / wheel_radius
+        self.kV = kV
+        self.kF = kF
+        self.mu_s = mu_s
 
-    def solve_module_positions(self, theta: MX):
+    def solve_module_positions(self, theta: MX) -> MX:
         """
             Calculates the position of the the modules relative to the nonrotating robot coordinate system
             at an instant. Constructs expressions for the position of each module in terms of the angle
@@ -87,16 +82,18 @@ class SwerveDrive:
         """
         # module_angles are angles between x-axis of robot coordinate system and vector
         # pointing from center of robot to module.
-        module_angle = atan2(self.wheelbase_y, self.wheelbase_x)
+        module_angle = atan2(self.track_width / 2, self.wheelbase / 2)
         module_angles = (module_angle, -module_angle, pi - module_angle, -(pi - module_angle))
-        diagonal = hypot(self.wheelbase_x, self.wheelbase_y)
-        module_positions = []
-        for module_angle in module_angles:
-            module_positions.append([diagonal*cos(module_angle+theta), diagonal*sin(module_angle+theta)])
+        diagonal = hypot(self.track_width / 2, self.wheelbase / 2)
+        module_positions = MX(2, 4)
+        for module_idx in range(4):
+            module_positions[0, module_idx] = diagonal*cos(module_angles[module_idx]+theta)
+            module_positions[1, module_idx] = diagonal*sin(module_angles[module_idx]+theta)
+
         return module_positions
 
-    def add_kinematics_constraint(self,
-            solver: OptiSol,
+    def add_constraints(self,
+            opti: Opti,
             theta: MX,
             vx: MX,
             vy: MX,
@@ -117,34 +114,94 @@ class SwerveDrive:
                 alpha  -- the list of angular acceleration (size N)
                 N      -- the total number of segments in the path
         """
-        max_wheel_velocity_squared = self.omega_max * self.wheel_radius
-        max_wheel_velocity_squared = max_wheel_velocity_squared * max_wheel_velocity_squared
-        max_force_squared = self.force_max * self.force_max
+
         for k in range(N_total):
+            # Calculate positions of each module relative to field coordinate system
             module_positions = self.solve_module_positions(theta[k])
 
-            for module_position in module_positions:
-                # swerve kinematics: add the component of velocity of the robot
-                # to the velocity to cause rotation. This gives the total velocity
-                # of the module to both rotate and translate.
-                m_vx = vx[k] + module_position[0] * omega[k]
-                m_vy = vy[k] + module_position[1] * omega[k]
-                solver.subject_to(m_vx * m_vx + m_vy * m_vy < max_wheel_velocity_squared)
 
-            # Components of force caused by each wheel
-            Fx = solver.variable(4)
-            Fy = solver.variable(4)
+            # Unit vectors of module rotation in module's coordinate system
+            module_rotations = opti.variable(2, 4)
 
-            # Components of torque by each wheel
-            # Does not need to be a solver variable since each torque
-            # can be expressed in terms of force
-            tau = []
-            for j in range(4):
-                # 2D version of cross product (torque = r x force)
-                tau.append(module_positions[j][1] * Fx[j] - module_positions[j][0] * Fy[j])
-                solver.subject_to(Fx[j] * Fx[j] + Fy[j] * Fy[j] < max_force_squared)
+            # Magnitude of velocity of each module
+            module_velocity_magnitudes = opti.variable(1, 4)
+
+            # collect velocity variables
+            for module_idx in range(4):
+                # Use IK to calculate module velocity vectors
+                v_m = vertcat(vx[k] + module_positions[0,module_idx] * omega[k],
+                              vy[k] + module_positions[1,module_idx] * omega[k])
+
+                v_m_norm = module_velocity_magnitudes[module_idx]
+
+                v_m_hat = module_rotations[:,module_idx]
+
+                opti.set_initial(v_m_hat, DM([1.0, 0.0]))
+
+                apply_unit_vector_constraint(opti, v_m_hat)
+
+                opti.subject_to(v_m == v_m_norm * v_m_hat)
+
+                # Force module velocity unit vector to point in direction of
+                # module velocity
+                opti.subject_to(v_m_norm >= 0.0)
+
+            # Force applied by each module, separated into longitudinal and
+            # lateral components, respectively
+            # "prime" means in rotated reference frame of wheel
+            F_prime = opti.variable(2, 4)
+
+            F = MX(2, 4)
+            tau = MX(0.0)
+
+            # Collect force variables
+            for module_idx in range(4):
+                # Assume the robot lives on planet earth
+                # Assume even weight distribution (low cg helps with this)
+                F_N = (self.mass * 9.8) / 4
+
+                # Constrain F within the "friction circle"
+                constrain_vector_norm(opti, F_prime, F_N)
+
+                v_m_hat = module_rotations[:,module_idx]
+                v_perp_m_hat = calculate_perpendicular_vector(v_m_hat)
+
+                F_m_prime = F_prime[:,module_idx]
+
+                # Force components as vectors in field frame
+                F_m_longitudinal = F_m_prime[0] * v_m_hat
+                F_m_lateral = F_m_prime[1] * v_perp_m_hat
+
+                r_m = module_positions[:,module_idx]
+                F_m = F_m_longitudinal + F_m_lateral
+
+                F[:, module_idx] = F_m
+                tau += cross_product(r_m, F_m)
+
+            # Apply power constraints
+            for module_idx in range(4):
+                F_m_longitudinal = F_prime[0, module_idx]
+                v_m_norm = module_velocity_magnitudes[module_idx]
+
+                # The motor power equation, accounting for the case where
+                # longitudinal force is in the opposite direction of velocity
+                # https://www.desmos.com/calculator/rfrh8elbsx
+                opti.subject_to(self.kV * v_m_norm + self.kF * F_m_longitudinal <= 12)
+                opti.subject_to(self.kV * v_m_norm - self.kF * F_m_longitudinal <= 12)
 
             # Newton's second law
-            solver.subject_to(ax[k] * self.mass == Fx[0] + Fx[1] + Fx[2] + Fx[3])
-            solver.subject_to(ay[k] * self.mass == Fy[0] + Fy[1] + Fy[2] + Fy[3])
-            solver.subject_to(alpha[k] * self.moi == sum(tau))
+            opti.subject_to(ax[k] * self.mass == F[0, 0] + F[0, 1] + F[0, 2] + F[0, 3])
+            opti.subject_to(ay[k] * self.mass == F[1, 0] + F[1, 1] + F[1, 2] + F[1, 3])
+            opti.subject_to(alpha[k] * self.moi == tau)
+
+def apply_unit_vector_constraint(opti: Opti, vec: MX):
+    opti.subject_to(vec[0] * vec[0] + vec[1] * vec[1] == 1.0)
+
+def calculate_perpendicular_vector(vec: MX):
+    return vertcat(-vec[1], vec[0])
+
+def constrain_vector_norm(opti: Opti, vec: MX, norm: float):
+    opti.subject_to(vec[0] * vec[0] + vec[1] * vec[1] <= norm * norm)
+
+def cross_product(a: MX, b: MX):
+    return a[0] * b[1] - a[1] * b[0]

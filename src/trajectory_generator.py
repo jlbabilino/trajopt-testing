@@ -36,7 +36,7 @@ class TrajectoryGenerator:
         # and at certain angles. N is a number of segments.
 
         # Split path into trajectory segments
-        self.N_sgmt = 100
+        self.N_sgmt = 40
         self.sgmt_count = len(self.waypoints) - 1
         self.N_total = self.N_sgmt * self.sgmt_count
 
@@ -101,7 +101,7 @@ class TrajectoryGenerator:
         self.opti.set_initial(self.theta, theta_init)
 
         # Add constraints
-        self.drive.add_kinematics_constraint(self.opti, self.theta, self.vx, self.vy, self.omega, self.ax, self.ay, self.alpha, self.N_total)
+        self.drive.add_constraints(self.opti, self.theta, self.vx, self.vy, self.omega, self.ax, self.ay, self.alpha, self.N_total)
         self.add_boundry_constraint()
         self.add_waypoint_constraint(self.waypoints)
 

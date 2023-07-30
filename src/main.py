@@ -19,7 +19,7 @@ def main():
     waypoints = [
         Waypoint(0.0, 0.0, 0.0),
         # Waypoint(5.0, 3.0, 2.0, False),
-        Waypoint(3.0, 3.0, 0.0)]
+        Waypoint(3.0, 0.0, 0.0)]
 
     generator = TrajectoryGenerator(drive, waypoints)
 
@@ -37,6 +37,7 @@ def main():
 
     # plt.show()
 
+    print(trajectory)
 
 
 

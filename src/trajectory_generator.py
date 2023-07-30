@@ -68,6 +68,8 @@ class TrajectoryGenerator:
         self.vy = self.X[4,:]
         self.omega = self.X[5,:]
 
+        self.module_rotation = self.opti.variable(8, self.N_total)
+
         # Each column of U corresponds to a segment between two sample points in the trajectory.
         # U stores variables that have meaning between sample points. For example, when the
         # robot goes between two sample points, it starts and ends with a different velocity.
@@ -77,6 +79,8 @@ class TrajectoryGenerator:
         self.ax = self.U[0,:]
         self.ay = self.U[1,:]
         self.alpha = self.U[2,:]
+
+        self.F_prime = self.opti.variable(8, self.N_total)
 
         # Add dynamics constraint
         # X, U are columns of self.X, self.Y
@@ -101,7 +105,19 @@ class TrajectoryGenerator:
         self.opti.set_initial(self.theta, theta_init)
 
         # Add constraints
-        self.drive.add_constraints(self.opti, self.theta, self.vx, self.vy, self.omega, self.ax, self.ay, self.alpha, self.N_total)
+        self.drive.add_constraints(
+                self.opti,
+                self.theta,
+                self.module_rotation,
+                self.vx,
+                self.vy,
+                self.omega,
+                self.ax,
+                self.ay,
+                self.alpha,
+                self.F_prime,
+                self.N_total)
+
         self.add_boundry_constraint()
         self.add_waypoint_constraint(self.waypoints)
 

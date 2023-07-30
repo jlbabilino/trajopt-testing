@@ -95,12 +95,14 @@ class SwerveDrive:
     def add_constraints(self,
             opti: Opti,
             theta: MX,
+            module_rotation: MX,
             vx: MX,
             vy: MX,
             omega: MX,
             ax: MX,
             ay: MX,
             alpha: MX,
+            F_prime: MX,
             N_total: int):
         """
             Arguments:
@@ -119,9 +121,9 @@ class SwerveDrive:
             # Calculate positions of each module relative to field coordinate system
             module_positions = self.solve_module_positions(theta[k])
 
-
             # Unit vectors of module rotation in module's coordinate system
-            module_rotations = opti.variable(2, 4)
+
+            module_rotations = vertcat(module_rotation[:4, k].T, module_rotation[4:8, k].T)
 
             # Magnitude of velocity of each module
             module_velocity_magnitudes = opti.variable(1, 4)
@@ -129,8 +131,8 @@ class SwerveDrive:
             # collect velocity variables
             for module_idx in range(4):
                 # Use IK to calculate module velocity vectors
-                v_m = vertcat(vx[k] + module_positions[0,module_idx] * omega[k],
-                              vy[k] + module_positions[1,module_idx] * omega[k])
+                v_m = vertcat(vx[k] - module_positions[1,module_idx] * omega[k],
+                              vy[k] + module_positions[0,module_idx] * omega[k])
 
                 v_m_norm = module_velocity_magnitudes[module_idx]
 
@@ -149,7 +151,7 @@ class SwerveDrive:
             # Force applied by each module, separated into longitudinal and
             # lateral components, respectively
             # "prime" means in rotated reference frame of wheel
-            F_prime = opti.variable(2, 4)
+            samp_F_prime = horzcat(F_prime[:4, k], F_prime[4:8, k]).T
 
             F = MX(2, 4)
             tau = MX(0.0)
@@ -161,12 +163,12 @@ class SwerveDrive:
                 F_N = (self.mass * 9.8) / 4
 
                 # Constrain F within the "friction circle"
-                constrain_vector_norm(opti, F_prime, F_N)
+                constrain_vector_norm(opti, samp_F_prime, F_N)
 
                 v_m_hat = module_rotations[:,module_idx]
                 v_perp_m_hat = calculate_perpendicular_vector(v_m_hat)
 
-                F_m_prime = F_prime[:,module_idx]
+                F_m_prime = samp_F_prime[:,module_idx]
 
                 # Force components as vectors in field frame
                 F_m_longitudinal = F_m_prime[0] * v_m_hat
@@ -180,7 +182,7 @@ class SwerveDrive:
 
             # Apply power constraints
             for module_idx in range(4):
-                F_m_longitudinal = F_prime[0, module_idx]
+                F_m_longitudinal = samp_F_prime[0, module_idx]
                 v_m_norm = module_velocity_magnitudes[module_idx]
 
                 # The motor power equation, accounting for the case where

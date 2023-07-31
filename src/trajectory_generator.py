@@ -36,7 +36,7 @@ class TrajectoryGenerator:
         # and at certain angles. N is a number of segments.
 
         # Split path into trajectory segments
-        self.N_sgmt = 100
+        self.N_sgmt = 40
         self.sgmt_count = len(self.waypoints) - 1
         self.N_total = self.N_sgmt * self.sgmt_count
 

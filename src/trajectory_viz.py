@@ -86,7 +86,7 @@ def animate_trajectory(
         return myrect,
 
     anim = animation.FuncAnimation(
-        fig, animate, init_func=init, frames=num_states, interval=10, blit=True, repeat=True
+        fig, animate, init_func=init, frames=num_states, interval=40, blit=True, repeat=True
     )
 
     plt.show()

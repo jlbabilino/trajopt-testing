@@ -13,16 +13,18 @@ def main():
         # Mass/moi
         46.7,5.6,
         # Max velocity/force
-        70, 1.9,
+        0.0000003, 0.0000003,
         # 73, 1,
         # 50, 1,
         # Wheel radius
         0.051)
     
     waypoints = [
-        Waypoint(0.0, 0.0, 0.0, True),
-        Waypoint(5.0, 3.0, 2.0, False),
-        Waypoint(3.0, 1.0, -1.0)]
+        Waypoint(0.0, 0.0, 0.0),
+        Waypoint(5.0, 3.0, 2.0),
+        Waypoint(3.0, 1.0, -1.0),
+        Waypoint(2.0, 3.0, 5.0),
+        Waypoint(7.0, 4.0, 3.0)]
 
     generator = TrajectoryGenerator(drive, waypoints)
 

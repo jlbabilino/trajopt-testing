@@ -38,8 +38,8 @@ class SwerveDrive:
         coordinate system.
     """
     def __init__(self,
-            wheelbase: float,
-            trackwidth: float,
+            wheelbase_x: float,
+            wheelbase_y: float,
             length: float,
             width: float,
             mass: float,
@@ -117,34 +117,42 @@ class SwerveDrive:
                 alpha  -- the list of angular acceleration (size N)
                 N      -- the total number of segments in the path
         """
-        max_wheel_velocity_squared = self.omega_max * self.wheel_radius
-        max_wheel_velocity_squared = max_wheel_velocity_squared * max_wheel_velocity_squared
-        max_force_squared = self.force_max * self.force_max
+
         for k in range(N_total):
-            module_positions = self.solve_module_positions(theta[k])
+            solver.subject_to(vx[k] * vx[k] + vy[k] * vy[k] <= 1e2)
+            solver.subject_to(ax[k] * ax[k] + ay[k] * ay[k] <= 1e-1)
+            solver.subject_to(omega[k] >= -0.01)
+            solver.subject_to(omega[k] <= +0.01)
+            solver.subject_to(alpha[k] >= -0.003)
+            solver.subject_to(alpha[k] <= +0.003)
+        # max_wheel_velocity_squared = self.omega_max * self.wheel_radius
+        # max_wheel_velocity_squared = max_wheel_velocity_squared * max_wheel_velocity_squared
+        # max_force_squared = self.force_max * self.force_max
+        # for k in range(N_total):
+        #     module_positions = self.solve_module_positions(theta[k])
 
-            for module_position in module_positions:
-                # swerve kinematics: add the component of velocity of the robot
-                # to the velocity to cause rotation. This gives the total velocity
-                # of the module to both rotate and translate.
-                m_vx = vx[k] + module_position[0] * omega[k]
-                m_vy = vy[k] + module_position[1] * omega[k]
-                solver.subject_to(m_vx * m_vx + m_vy * m_vy < max_wheel_velocity_squared)
+        #     for module_position in module_positions:
+        #         # swerve kinematics: add the component of velocity of the robot
+        #         # to the velocity to cause rotation. This gives the total velocity
+        #         # of the module to both rotate and translate.
+        #         m_vx = vx[k] + module_position[0] * omega[k]
+        #         m_vy = vy[k] + module_position[1] * omega[k]
+        #         solver.subject_to(m_vx * m_vx + m_vy * m_vy < max_wheel_velocity_squared)
 
-            # Components of force caused by each wheel
-            Fx = solver.variable(4)
-            Fy = solver.variable(4)
+        #     # Components of force caused by each wheel
+        #     Fx = solver.variable(4)
+        #     Fy = solver.variable(4)
 
-            # Components of torque by each wheel
-            # Does not need to be a solver variable since each torque
-            # can be expressed in terms of force
-            tau = []
-            for j in range(4):
-                # 2D version of cross product (torque = r x force)
-                tau.append(module_positions[j][1] * Fx[j] - module_positions[j][0] * Fy[j])
-                solver.subject_to(Fx[j] * Fx[j] + Fy[j] * Fy[j] < max_force_squared)
+        #     # Components of torque by each wheel
+        #     # Does not need to be a solver variable since each torque
+        #     # can be expressed in terms of force
+        #     tau = []
+        #     for j in range(4):
+        #         # 2D version of cross product (torque = r x force)
+        #         tau.append(module_positions[j][1] * Fx[j] - module_positions[j][0] * Fy[j])
+        #         solver.subject_to(Fx[j] * Fx[j] + Fy[j] * Fy[j] < max_force_squared)
 
-            # Newton's second law
-            solver.subject_to(ax[k] * self.mass == Fx[0] + Fx[1] + Fx[2] + Fx[3])
-            solver.subject_to(ay[k] * self.mass == Fy[0] + Fy[1] + Fy[2] + Fy[3])
-            solver.subject_to(alpha[k] * self.moi == sum(tau))
+        #     # Newton's second law
+        #     solver.subject_to(ax[k] * self.mass == Fx[0] + Fx[1] + Fx[2] + Fx[3])
+        #     solver.subject_to(ay[k] * self.mass == Fy[0] + Fy[1] + Fy[2] + Fy[3])
+        #     solver.subject_to(alpha[k] * self.moi == sum(tau))

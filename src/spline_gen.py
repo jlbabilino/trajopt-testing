@@ -1,76 +1,113 @@
 import numpy as np
 from sympy import *
 from sympy.matrices.dense import hessian
+from dataclasses import dataclass
 
-def construct_polynomial(t, x0, x1, x2, x3, x4, x5):
-  return x0 + x1*t + x2*t**2 + x3*t**3 + x4*t**4 + x5*t**5
+def construct_polynomial(t: Symbol, coeffs: list[Symbol]) -> Symbol:
+  polynomial = 0
+  for i in range(len(coeffs)):
+    polynomial += coeffs[i] * t ** i
+
+  return polynomial
+
+def create_indexed_symbols(prefix: str, indices: list[int]) -> list[Symbol]:
+  new_symbols = []
+  for index in indices:
+    new_symbols.append(symbols(prefix + "i" + str(index)))
+  return new_symbols
 
 def main():
-  t = symbols("t")
-  x0, x1, x2, x3, x4, x5 = symbols("x0, x1, x2, x3, x4, x5")
-  y0, y1, y2, y3, y4, y5 = symbols("y0, y1, y2, y3, y4, y5")
-  theta0, theta1, theta2, theta3, theta4, theta5 = symbols("θ0, θ1, θ2, θ3, θ4, θ5")
-
-  x = construct_polynomial(t, x0, x1, x2, x3, x4, x5)
-  y = construct_polynomial(t, y0, y1, y2, y3, y4, y5)
-  theta = construct_polynomial(t, theta0, theta1, theta2, theta3, theta4, theta5)
-
-  x_prime = diff(x, t, 1)
-  y_prime = diff(y, t, 1)
-
-  x_prime_prime = diff(x, t, 2)
-  y_prime_prime = diff(y, t, 2)
-  theta_prime_prime = diff(theta, t, 2)
-
-  x_t0, y_t0, theta_t0 = symbols("x_t0 y_t0 θ_t0")
-  x_t1, y_t1, theta_t1 = symbols("x_t1 y_t1 θ_t1")
-
-  v_xt0, v_yt0 = symbols("v_xt0 v_yt0")
-  v_xt1, v_yt1 = symbols("v_xt1 v_yt1")
-
-  k_0, k_1 = symbols("k_0 k_1")
-
-  c0 = Eq(x.subs(t, 0), x_t0)
-  c1 = Eq(y.subs(t, 0), y_t0)
-  c2 = Eq(theta.subs(t, 0), theta_t0)
-  c3 = Eq(x.subs(t, 1), x_t1)
-  c4 = Eq(y.subs(t, 1), y_t1)
-  c5 = Eq(theta.subs(t, 1), theta_t1)
-  c6 = Eq(x_prime.subs(t, 0), k_0 * v_xt0)
-  c7 = Eq(y_prime.subs(t, 0), k_0 * v_yt0)
-  c8 = Eq(x_prime.subs(t, 1), k_1 * v_xt1)
-  c9 = Eq(y_prime.subs(t, 1), k_1 * v_yt1)
-
-  spline_coeffs = (x0, x1, x2, x3, x4, x5, y0, y1, y2, y3, y4, y5, theta0, theta1, theta2, theta3, theta4, theta5)
-
-  solution, = linsolve([c0, c1, c2, c3, c4, c5, c6, c7, c8, c9], *spline_coeffs)
-
-  cost = integrate(x_prime_prime**2, (t, 0, 1)) + integrate(y_prime_prime**2, (t, 0, 1)) + integrate(theta_prime_prime**2, (t, 0, 1))
+  generate_optimal_spline(5, [
+    Waypoint(1, 2, 0),
+    Waypoint(5, 4, 0),
+    Waypoint(1, 7, 0),
+    Waypoint(3, 6, 0),
+    Waypoint(5, 0, 0),
+  ])
+  # print(latex(myspline))
   
-  cost_subs = cost
+
+@dataclass
+class Waypoint:
+  x: float
+  y: float
+  theta: float
+
+def generate_optimal_spline(degree: int, waypoints: list[Waypoint]):
+  wpt_cnt = len(waypoints)
+  sgmt_cnt = len(waypoints) - 1
+
+  t = symbols("t")
+  x = []
+  y = []
+  theta = []
+  
+  xCoeffs = []
+  yCoeffs = []
+  thetaCoeffs = []
+
+  for sgmt_idx in range(sgmt_cnt):
+    xCoeffs.append(create_indexed_symbols("x_s" + str(sgmt_idx), range(degree + 1)))
+    yCoeffs.append(create_indexed_symbols("y_s" + str(sgmt_idx), range(degree + 1)))
+    thetaCoeffs.append(create_indexed_symbols("θ_s" + str(sgmt_idx), range(degree + 1)))
+    x.append(construct_polynomial(t, xCoeffs[-1]))
+    y.append(construct_polynomial(t, yCoeffs[-1]))
+    theta.append(construct_polynomial(t, thetaCoeffs[-1]))
+
+  constraints = []
+
+  # Apply waypoint pose constraints
+  for sgmt_idx in range(sgmt_cnt):
+    constraints.append(Eq(x[sgmt_idx].subs(t, 0), waypoints[sgmt_idx].x))
+    constraints.append(Eq(x[sgmt_idx].subs(t, 1), waypoints[sgmt_idx + 1].x))
+    constraints.append(Eq(y[sgmt_idx].subs(t, 0), waypoints[sgmt_idx].y))
+    constraints.append(Eq(y[sgmt_idx].subs(t, 1), waypoints[sgmt_idx + 1].y))
+    constraints.append(Eq(theta[sgmt_idx].subs(t, 0), waypoints[sgmt_idx].theta))
+    constraints.append(Eq(theta[sgmt_idx].subs(t, 1), waypoints[sgmt_idx + 1].theta))
+
+  # Make multiple orders of derivatives equivalent at barrier between splines
+  for deriv_order in range(1, 3):
+    for wpt_idx in range(1, wpt_cnt - 1):
+      constraints.append(Eq(diff(x[wpt_idx - 1], (t, deriv_order)).subs(t, 1), diff(x[wpt_idx], (t, deriv_order)).subs(t, 0)))
+      constraints.append(Eq(diff(y[wpt_idx - 1], (t, deriv_order)).subs(t, 1), diff(y[wpt_idx], (t, deriv_order)).subs(t, 0)))
+      constraints.append(Eq(diff(theta[wpt_idx - 1], (t, deriv_order)).subs(t, 1), diff(theta[wpt_idx], (t, deriv_order)).subs(t, 0)))
+
+  spline_coeffs = []
+
+  for sgmt_idx in range(sgmt_cnt):
+    for coeffs in (xCoeffs, yCoeffs, thetaCoeffs):
+      for coeff in coeffs[sgmt_idx]:
+        spline_coeffs.append(coeff)
+
+  solution, = linsolve(constraints, *spline_coeffs)
+
+  cost = 0
+  for vari in (x, y, theta):
+    for sgmt_idx in range(sgmt_cnt):
+      cost += integrate(diff(vari[sgmt_idx], (t, 2))**2, (t, 0, 1))
+
   for i in range(len(spline_coeffs)):
-    cost_subs = cost_subs.subs(spline_coeffs[i], solution[i])
+    cost = cost.subs(spline_coeffs[i], solution[i])
 
-  # pprint(cost_subs)
+  free_variables = list(cost.free_symbols)
 
+  cost_hessian = hessian(cost, free_variables)
 
-  opti_params = (x4, x5, y4, y5, theta2, theta3, theta4, theta5, k_0, k_1)
-  opti_params2 = [x4, x5, y4, y5, theta2, theta3, theta4, theta5, k_0, k_1]
+  b = Matrix([0] * len(free_variables))
 
+  final_sol, = linsolve((cost_hessian, b), free_variables)
 
-  costhessian = hessian(cost_subs, opti_params)
+  solution = solution.subs(list(zip(free_variables, final_sol)))
 
-  # costhessian_subs = costhessian
-  # costhessian_subs = costhessian_subs.subs()
-
-  # pprint(costhessian)
-  b = Matrix([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-
-  mysol = linsolve((costhessian, b), opti_params2)
-
-  pprint(mysol)
-
-
+  for sgmt_idx in range(sgmt_cnt):
+    x[sgmt_idx] = x[sgmt_idx].subs(list(zip(spline_coeffs, solution)))
+    y[sgmt_idx] = y[sgmt_idx].subs(list(zip(spline_coeffs, solution)))
+    theta[sgmt_idx] = theta[sgmt_idx].subs(list(zip(spline_coeffs, solution)))
+  
+  splines = []
+  for sgmt_idx in range(sgmt_cnt):
+    splines.append((x[sgmt_idx], y[sgmt_idx]))
+    pprint(latex(splines[-1]))
 
 if __name__ == "__main__":
   main()

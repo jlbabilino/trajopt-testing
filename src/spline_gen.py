@@ -23,15 +23,26 @@ def main():
     Waypoint(1, 7, 0),
     Waypoint(3, 6, 0),
     Waypoint(5, 0, 0),
+    Waypoint(5, 5, 0),
+    Waypoint(2, 4, 0),
+    Waypoint(8, 1, 0),
   ])
   # print(latex(myspline))
   
 
-@dataclass
+# @dataclass
 class Waypoint:
   x: float
   y: float
   theta: float
+
+  def __init__(self, x, y, theta):
+    self.x = x
+    self.y = y
+    self.theta = theta
+
+  def __str__(self):
+    return "\\left(" + str(self.x) + "," + str(self.y) + "\\right)"
 
 def generate_optimal_spline(degree: int, waypoints: list[Waypoint]):
   wpt_cnt = len(waypoints)
@@ -108,6 +119,9 @@ def generate_optimal_spline(degree: int, waypoints: list[Waypoint]):
   for sgmt_idx in range(sgmt_cnt):
     splines.append((x[sgmt_idx], y[sgmt_idx]))
     pprint(latex(splines[-1]))
+
+  for wpt in waypoints:
+    print(wpt)
 
 if __name__ == "__main__":
   main()
